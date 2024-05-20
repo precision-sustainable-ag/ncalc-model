@@ -1,8 +1,8 @@
 import React from 'react';
-import Graph from './components/Graph';
+import Graphs from './components/Graph';
 
 const App = () => (
-  <Graph />
+  <Graphs />
 );
 
 export default App;

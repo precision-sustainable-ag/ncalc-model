@@ -1,14 +1,182 @@
-/* eslint-disable camelcase */
+/* eslint-disable no-eval */
+
 import React, { useEffect, useState } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
+import './styles.scss';
 
-// const API = 'https://api.covercrop-ncalc.org';
+const API = 'https://developapi.covercrop-ncalc.org';
 // const API = 'http://localhost';
 
-const Graph = () => {
+const convertToObject = (d) => {
+  try {
+    return d.FOM.map((_, i) => {
+      const o = {};
+      Object.keys(d).forEach((key) => { o[key] = d[key][i]; });
+      return o;
+    });
+  } catch (ee) {
+    // console.log('already object');
+    return d;
+  }
+};
+
+const dailyAverage = (date, arr, parm) => {
+  let total = 0;
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (i > 0 && i % 24 === 0) {
+      result.push({
+        x: +date,
+        y: +(total / 24).toFixed(2),
+      });
+      date.setDate(date.getDate() + 1);
+      total = 0;
+    } else {
+      total += arr[i][parm];
+    }
+  }
+  return result;
+}; // dailyAverage
+
+const dailyTotal = (date, arr, parm) => {
+  let total = 0;
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (i > 0 && i % 24 === 0) {
+      result.push({
+        x: +date,
+        y: +total.toFixed(2),
+      });
+      date.setDate(date.getDate() + 1);
+      total = 0;
+    } else {
+      total += arr[i][parm];
+    }
+  }
+  return result;
+}; // dailyTotal
+
+const WeatherGraph = ({ sdatanew }) => {
+  const series = [
+    {
+      name: 'Rainfall',
+      data: dailyTotal(new Date(sdatanew[0].Date), sdatanew, 'Rain'),
+      animation: false,
+      color: 'green',
+      type: 'column',
+    },
+    {
+      name: 'Air temperature',
+      data: dailyAverage(new Date(sdatanew[0].Date), sdatanew, 'Temp'),
+      animation: false,
+      color: 'blue',
+    },
+    {
+      name: 'Relative humidity',
+      data: dailyAverage(new Date(sdatanew[0].Date), sdatanew, 'RH'),
+      animation: false,
+      color: 'brown',
+      yAxis: 1,
+    },
+  ];
+
+  const options = {
+    chart: {
+      type: 'line',
+      animation: false,
+    },
+    title: {
+      text: 'Weather',
+    },
+    xAxis: {
+      type: 'datetime',
+    },
+    yAxis: [
+      {
+        title: {
+          text: 'Rainfall (mm)',
+        },
+      },
+      {
+        title: {
+          text: 'Air temperature (&deg;C)',
+        },
+      },
+      {
+        title: {
+          text: 'Relative humidity (%)',
+        },
+        opposite: true,
+      },
+    ],
+    series,
+  };
+
+  return (
+    <div className="chart">
+      <HighchartsReact
+        highcharts={Highcharts}
+        options={options}
+        containerProps={{ style: { height: '100%', width: '100%' } }}
+      />
+    </div>
+  );
+};
+
+const Graph = ({
+  sdataold, sdatanew, parm, desc,
+}) => {
+  const series = [
+    {
+      name: 'original',
+      data: dailyAverage(new Date(sdataold[0].Date), sdataold, parm),
+      animation: false,
+      color: 'green',
+    },
+    {
+      name: 'new',
+      data: dailyAverage(new Date(sdatanew[0].Date), sdatanew, parm),
+      animation: false,
+      color: 'red',
+    },
+  ];
+
+  const options = {
+    chart: {
+      type: 'line',
+      animation: false,
+    },
+    title: {
+      text: desc,
+    },
+    xAxis: {
+      type: 'datetime',
+    },
+    yAxis: [
+      {
+        title: {
+          text: parm,
+        },
+      },
+    ],
+    series,
+  };
+
+  return (
+    <div className="chart">
+      <HighchartsReact
+        highcharts={Highcharts}
+        options={options}
+        containerProps={{ style: { height: '100%', width: '100%' } }}
+      />
+    </div>
+  );
+}; // Graph
+
+const Graphs = () => {
   const [weather, setWeather] = useState([]);
-  const [parm, setParm] = useState('MinNfromFOM');
+  // const [parm, setParm] = useState('MinNfromFOM');
 
   const retrieve = async () => {
     const lat = 32.865389;
@@ -62,65 +230,45 @@ const Graph = () => {
     };
 
     // eslint-disable-next-line no-undef
-    const sdata = surfaceModelNew(inputs).map((row) => (
-      [
-        new Date(row.Date),
-        row[parm],
-      ]
-    ));
+    const sdatanew = surfaceModelNew(inputs);
+    // console.log(sdatanew);
 
-    const options = {
-      chart: {
-        type: 'line',
-        animation: false,
-      },
-      title: {
-        text: parm,
-      },
-      xAxis: {
-        type: 'datetime',
-      },
-      yAxis: [
-        {
-          title: {
-            text: parm,
-          },
-        },
-      ],
-      series: {
-        name: 'new',
-        data: sdata,
-        animation: false,
-      },
-    };
+    // eslint-disable-next-line no-undef
+    const sdataold = convertToObject(surfaceModel(inputs));
+    // console.log(sdataold);
 
     return (
-      <>
-        <select
-          onChange={(e) => {
-            setParm(e.currentTarget.value);
-          }}
-          value={parm}
-        >
-          <option>MinNfromFOM</option>
-          <option>CarbN</option>
-        </select>
+      <div id="Graphs">
+        <h2>Fresh Organic Matter</h2>
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="Carb" desc="Carbohydrates" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="Cell" desc="Holo-cellulose" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="Lign" desc="Lignin" />
 
-        <HighchartsReact
-          highcharts={Highcharts}
-          options={options}
-        />
-      </>
+        <h2>Fresh Organic Nitrogen</h2>
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="CarbN" desc="Carbohydrates" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="CellN" desc="Holo-cellulose" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="LigninN" desc="Lignin" />
+
+        <h2>Decay rate adjustment factors</h2>
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="RMTFAC" desc="Residue moisture-temperature reduction factor" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="CNRF" desc="C:N ratio factor" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="ContactFactor" desc="Residue contact factor" />
+
+        <h2>Other</h2>
+        <WeatherGraph sdatanew={sdatanew} />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="LitterMPa" desc="Litter water potential" />
+        <Graph sdatanew={sdatanew} sdataold={sdataold} parm="Air_MPa" desc="Air water potential" />
+      </div>
     );
   }
 
   return <div>Loading&hellip;</div>;
 };
 
-let src = await (await fetch('http://localhost/source')).text();
-[src] = src.split('module');
-src = src.replace(/[\n\r]const (\w+) = ([^=]+) =>/g, '\nfunction $1 $2');
-// eslint-disable-next-line no-eval
-window.eval(src);
+const srcnew = await (await fetch(`${API}/sourcenew`)).text();
+window.eval(srcnew);
 
-export default Graph;
+const srcold = await (await fetch(`${API}/sourceold`)).text();
+window.eval(srcold);
+
+export default Graphs;
